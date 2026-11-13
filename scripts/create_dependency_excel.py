@@ -77,7 +77,7 @@ SAMPLE_DATA = [
         "Sneha21C07/Tocheck",
         "main",
         "**/dto/**/*.java, **/controller/**/*.java",
-        "sample-org/repo2-user-update-service",
+        "Sneha21C07/tocheck2",
         "main",
         "**/dto/**/*.java, **/controller/**/*.java",
         "SHARED_DTO",

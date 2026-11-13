@@ -63,13 +63,13 @@ jobs:
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             ARGS="$ARGS --pr ${{ github.event.pull_request.number }}"
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            ARGS="$ARGS --commit ${{ github.sha }}"
           elif [ -n "${{ github.event.inputs.pr_number }}" ]; then
             ARGS="$ARGS --pr ${{ github.event.inputs.pr_number }}"
+          else
+            ARGS="$ARGS --commit ${{ github.sha }}"
           fi
 
-          if [ "${{ github.event.inputs.fail_on_breaking }}" != "false" ]; then
+          if [ "${{ github.event.inputs.fail_on_breaking }}" = "true" ]; then
             ARGS="$ARGS --fail-on-breaking"
           fi
 
