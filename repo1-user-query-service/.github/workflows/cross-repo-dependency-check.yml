@@ -19,10 +19,14 @@ on:
         description: "Pull Request number to analyze (optional)"
         required: false
         type: string
+      commit_sha:
+        description: "Commit SHA to analyze (optional)"
+        required: false
+        type: string
       fail_on_breaking:
         description: "Fail the workflow if breaking changes are detected"
         required: false
-        default: true
+        default: false
         type: boolean
 
 permissions:
@@ -65,6 +69,8 @@ jobs:
             ARGS="$ARGS --pr ${{ github.event.pull_request.number }}"
           elif [ -n "${{ github.event.inputs.pr_number }}" ]; then
             ARGS="$ARGS --pr ${{ github.event.inputs.pr_number }}"
+          elif [ -n "${{ github.event.inputs.commit_sha }}" ]; then
+            ARGS="$ARGS --commit ${{ github.event.inputs.commit_sha }}"
           else
             ARGS="$ARGS --commit ${{ github.sha }}"
           fi

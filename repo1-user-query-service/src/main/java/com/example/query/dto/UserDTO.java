@@ -13,7 +13,8 @@ public class UserDTO implements Serializable {
     private String departmentCode;
     private String role;
     private String region;
-    private String status;
+    // BREAKING CHANGE: status field renamed to accountStatus
+    private String accountStatus;
     private List<String> skills;
 
     public UserDTO() {}
@@ -36,8 +37,8 @@ public class UserDTO implements Serializable {
     public String getRegion() { return region; }
     public void setRegion(String region) { this.region = region; }
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public String getAccountStatus() { return accountStatus; }
+    public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
 
     public List<String> getSkills() { return skills; }
     public void setSkills(List<String> skills) { this.skills = skills; }
