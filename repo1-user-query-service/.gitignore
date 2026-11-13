@@ -1,0 +1,34 @@
+# Environment variables & secrets (CRITICAL: never commit tokens)
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# IDE / Editor
+.idea/
+*.iml
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db

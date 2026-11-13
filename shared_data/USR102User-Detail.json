@@ -1,0 +1,17 @@
+{
+  "userId": "USR102",
+  "name": "John Doe",
+  "email": "john.doe@enterprise.org",
+  "department": "Finance",
+  "role": "Financial Analyst",
+  "region": "EU-West",
+  "status": "SENIOR",
+  "salary": 135000,
+  "skills": [
+    "Excel",
+    "Financial Modeling",
+    "SQL"
+  ],
+  "queriedDepartment": "Finance",
+  "_lastUpdatedBy": "repo2-user-update-service"
+}

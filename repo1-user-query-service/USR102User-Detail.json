@@ -1,0 +1,16 @@
+{
+  "userId": "USR102",
+  "name": "John Doe",
+  "email": "john.doe@enterprise.org",
+  "department": "Finance",
+  "role": "Financial Analyst",
+  "region": "EU-West",
+  "status": "ACTIVE",
+  "salary": 115000,
+  "skills": [
+    "Excel",
+    "Financial Modeling",
+    "SQL"
+  ],
+  "queriedDepartment": "Finance"
+}

@@ -1,0 +1,19 @@
+{
+  "userId": "USR101",
+  "name": "Sarah Connor",
+  "email": "sarah.connor@cyberdyne.io",
+  "department": "Global Architecture",
+  "role": "Distinguished Principal Architect",
+  "region": "US-East",
+  "status": "PROMOTED_EXECUTIVE",
+  "salary": 185000,
+  "skills": [
+    "Java",
+    "Microservices",
+    "Spring Boot",
+    "Python"
+  ],
+  "queriedDepartment": "Engineering",
+  "promotionYear": 2026,
+  "_lastUpdatedBy": "repo2-user-update-service"
+}

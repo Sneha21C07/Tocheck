@@ -1,0 +1,76 @@
+name: "Cross-Repository Java Dependency Guardian"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**/*.java'
+  push:
+    branches:
+      - main
+      - master
+      - 'release/**'
+      - develop
+    paths:
+      - '**/*.java'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request number to analyze (optional)"
+        required: false
+        type: string
+      fail_on_breaking:
+        description: "Fail the workflow if breaking changes are detected"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-cross-repo-dependencies:
+    name: "Analyze Cross-Repo Contract Incompatibilities"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout Source Repository"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Set up Python 3.12"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: "Install Guardian Dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: "Run Cross-Repo Dependency Guardian Agent"
+        env:
+          GITHUB_PAT: ${{ secrets.CROSS_REPO_GITHUB_PAT || secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          ARGS="--repo ${{ github.repository }}"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ARGS="$ARGS --pr ${{ github.event.pull_request.number }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            ARGS="$ARGS --commit ${{ github.sha }}"
+          elif [ -n "${{ github.event.inputs.pr_number }}" ]; then
+            ARGS="$ARGS --pr ${{ github.event.inputs.pr_number }}"
+          fi
+
+          if [ "${{ github.event.inputs.fail_on_breaking }}" != "false" ]; then
+            ARGS="$ARGS --fail-on-breaking"
+          fi
+
+          python main.py $ARGS
