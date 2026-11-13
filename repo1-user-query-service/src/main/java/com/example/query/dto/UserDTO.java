@@ -4,11 +4,12 @@ import java.io.Serializable;
 import java.util.List;
 
 public class UserDTO implements Serializable {
-    // BREAKING: userId field removed and renamed to accountId
+    // BREAKING CHANGE: userId removed and renamed to accountId
+    // This breaks repo2 (Sneha21C07/tocheck2) which invokes getUserId()!
     private String accountId;
     private String name;
     private String email;
-    // BREAKING: department field renamed to departmentCode
+    // BREAKING CHANGE: department field renamed to departmentCode
     private String departmentCode;
     private String role;
     private String region;
