@@ -44,15 +44,28 @@ class RepoDependencyRule:
 class JavaField:
     name: str
     type_name: str
+    line_number: int = 1
     annotations: List[str] = field(default_factory=list)
+    json_property: Optional[str] = None
+    is_json_ignored: bool = False
+    validation_constraints: List[str] = field(default_factory=list)
 
 
 @dataclass
 class JavaMethod:
     name: str
     return_type: str
+    line_number: int = 1
     parameters: List[str] = field(default_factory=list)
     annotations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class RestEndpoint:
+    verb: str
+    path: str
+    line_number: int = 1
+    required_params: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -60,10 +73,11 @@ class JavaClassModel:
     package_name: str
     class_name: str
     class_type: str  # class, interface, enum, record
+    line_number: int = 1
     fields: Dict[str, JavaField] = field(default_factory=dict)
     methods: Dict[str, JavaMethod] = field(default_factory=dict)
     annotations: List[str] = field(default_factory=list)
-    rest_endpoints: List[Dict[str, str]] = field(default_factory=list)  # method, path
+    rest_endpoints: List[Dict[str, Any]] = field(default_factory=list)  # method, path, line_number, required_params
 
 
 @dataclass
@@ -98,6 +112,8 @@ class ImpactFinding:
     detailed_reason: str
     suggested_fix: str
     suggested_patch_code: str
+    source_line: Optional[int] = None
+    target_line: Optional[int] = None
 
 
 @dataclass

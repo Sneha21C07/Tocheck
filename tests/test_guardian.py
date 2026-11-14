@@ -136,6 +136,114 @@ public class PaymentClient {
         self.assertEqual(summary.role_in_contract, "Service Provider")
         self.assertIn("Spring Boot", summary.frameworks)
 
+    def test_validation_annotation_tightening_with_line_numbers(self):
+        """Test detecting added @NotNull / @NotBlank validation constraint along with line numbers."""
+        guardian = CrossRepoGuardian()
+
+        old_user_dto = """package com.example.dto;
+public class UserDTO {
+    private String email;
+}
+"""
+        new_user_dto = """package com.example.dto;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
+public class UserDTO {
+    @NotNull
+    @NotBlank
+    private String email;
+}
+"""
+        target_code = """package com.example.client;
+import com.example.dto.UserDTO;
+public class RegistrationClient {
+    public void register() {
+        UserDTO dto = new UserDTO();
+        dto.email = null;
+    }
+}
+"""
+        changed_source = [
+            ChangedJavaFile(
+                path="src/main/java/com/example/dto/UserDTO.java",
+                status="modified",
+                diff="""--- a/UserDTO.java\n+++ b/UserDTO.java\n+ @NotNull\n+ @NotBlank""",
+                old_content=old_user_dto,
+                new_content=new_user_dto,
+            )
+        ]
+        target_files = [
+            DependentTargetFile(
+                repo="sample-org/payment-service",
+                path="src/main/java/com/example/client/RegistrationClient.java",
+                content=target_code,
+            )
+        ]
+
+        report = guardian.run_check(
+            source_repo="sample-org/order-service",
+            changed_files_override=changed_source,
+            target_files_override=target_files,
+        )
+
+        self.assertTrue(report.has_breaking_changes)
+        self.assertGreaterEqual(len(report.findings), 1)
+        finding = report.findings[0]
+        self.assertIn("@NotNull", finding.breaking_change_summary)
+        self.assertIsNotNone(finding.source_line)
+        self.assertIsNotNone(finding.target_line)
+
+    def test_jackson_json_property_mutation(self):
+        """Test detecting changed @JsonProperty wire name with line numbers."""
+        guardian = CrossRepoGuardian()
+
+        old_order_dto = """package com.example.dto;
+import com.fasterxml.jackson.annotation.JsonProperty;
+public class OrderDTO {
+    @JsonProperty("orderId")
+    private String orderId;
+}
+"""
+        new_order_dto = """package com.example.dto;
+import com.fasterxml.jackson.annotation.JsonProperty;
+public class OrderDTO {
+    @JsonProperty("order_ref_id")
+    private String orderId;
+}
+"""
+        target_code = """package com.example.consumer;
+public class OrderConsumer {
+    private String orderId;
+}
+"""
+        changed_source = [
+            ChangedJavaFile(
+                path="src/main/java/com/example/dto/OrderDTO.java",
+                status="modified",
+                diff="""--- a/OrderDTO.java\n+++ b/OrderDTO.java\n- @JsonProperty("orderId")\n+ @JsonProperty("order_ref_id")""",
+                old_content=old_order_dto,
+                new_content=new_order_dto,
+            )
+        ]
+        target_files = [
+            DependentTargetFile(
+                repo="sample-org/payment-service",
+                path="src/main/java/com/example/consumer/OrderConsumer.java",
+                content=target_code,
+            )
+        ]
+
+        report = guardian.run_check(
+            source_repo="sample-org/order-service",
+            changed_files_override=changed_source,
+            target_files_override=target_files,
+        )
+
+        self.assertTrue(report.has_breaking_changes)
+        finding = report.findings[0]
+        self.assertIn("order_ref_id", finding.breaking_change_summary)
+        self.assertIsNotNone(finding.source_line)
+
 
 if __name__ == "__main__":
     unittest.main()

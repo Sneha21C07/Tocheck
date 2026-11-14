@@ -39,7 +39,7 @@ def generate_pr_comment_markdown(report: AnalysisReport) -> str:
     )
 
     table_header = (
-        "| Severity | Dependent Repo | Dependent File | Source Trigger | Dependency Type |\n"
+        "| Severity | Dependent Repo | Dependent File & Line | Source Trigger & Line | Dependency Type |\n"
         "| :---: | :--- | :--- | :--- | :--- |\n"
     )
 
@@ -52,16 +52,23 @@ def generate_pr_comment_markdown(report: AnalysisReport) -> str:
             if f.severity == "HIGH"
             else ":yellow_circle: **MEDIUM**"
         )
+        target_loc = f"`{f.target_file}`" + (f" (L{f.target_line})" if f.target_line else "")
+        source_loc = f"`{f.source_file}`" + (f" (L{f.source_line})" if f.source_line else "")
+
         rows.append(
-            f"| {badge} | `{f.target_repo}` | `{f.target_file}` | `{f.source_file}` | `{f.dependency_type}` |"
+            f"| {badge} | `{f.target_repo}` | {target_loc} | {source_loc} | `{f.dependency_type}` |"
         )
 
     table = table_header + "\n".join(rows) + "\n\n"
 
     details = "### Detailed Impact & Suggested Fixes\n\n"
     for idx, f in enumerate(report.findings, start=1):
-        details += f"#### {idx}. [{f.target_repo}] {f.target_file}\n"
-        details += f"**Summary**: {f.breaking_change_summary}\n\n"
+        target_loc = f"`{f.target_file}`" + (f" (Line {f.target_line})" if f.target_line else "")
+        source_loc = f"`{f.source_file}`" + (f" (Line {f.source_line})" if f.source_line else "")
+
+        details += f"#### {idx}. [{f.target_repo}] {target_loc}\n"
+        details += f"- **Triggered by**: {source_loc}\n"
+        details += f"- **Summary**: {f.breaking_change_summary}\n\n"
         details += f"**Why it breaks:**\n{f.detailed_reason}\n\n"
         details += f"**Action Required:**\n{f.suggested_fix}\n\n"
         if f.suggested_patch_code:

@@ -17,16 +17,22 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def load_flask_app(module_name: str, file_path: Path):
+    if not file_path.exists():
+        return None
     spec = importlib.util.spec_from_file_location(module_name, str(file_path))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-repo1_module = load_flask_app("repo1_app", BASE_DIR / "repo1-user-query-service" / "app.py")
-repo2_module = load_flask_app("repo2_app", BASE_DIR / "repo2-user-update-service" / "app.py")
+repo1_path = BASE_DIR / "repo1-user-query-service" / "app.py"
+repo2_path = BASE_DIR / "repo2-user-update-service" / "app.py"
+
+repo1_module = load_flask_app("repo1_app", repo1_path)
+repo2_module = load_flask_app("repo2_app", repo2_path)
 
 
+@unittest.skipIf(repo1_module is None or repo2_module is None, "Repo app files not found locally")
 class TestTwoReposEndToEnd(unittest.TestCase):
 
     def setUp(self):

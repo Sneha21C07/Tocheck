@@ -12,7 +12,7 @@ from typing import List, Optional, Dict, Any
 
 import httpx
 from src.config import Config
-from src.java_parser import parse_java_source, compare_java_versions
+from src.java_parser import parse_java_source, compare_java_versions, find_symbol_line
 from src.models import (
     ChangedJavaFile,
     DependentTargetFile,
@@ -104,10 +104,10 @@ class DependencyAnalyzerAgent:
             if path and len(path) > 3 and path in target_content:
                 return 0.8, f"References endpoint path {path}"
 
-        # Check if DTO fields match with high overlap
-        common_fields = [f for f in old_model.fields if f in target_content]
-        if len(common_fields) >= 3:
-            return 0.6, f"Shared field names: {common_fields[:3]}"
+        # Check if DTO fields match or if any field appears in target
+        common_fields = [f for f in set(old_model.fields) | set(src_model.fields) if f in target_content]
+        if common_fields:
+            return 0.7, f"Contains references to field(s): {common_fields[:3]}"
 
         return 0.0, "No apparent reference"
 
@@ -204,6 +204,8 @@ TARGET FILE CURRENT CONTENT:
             detailed_reason=data.get("detailed_reason", ""),
             suggested_fix=data.get("suggested_fix", ""),
             suggested_patch_code=data.get("suggested_patch_code", ""),
+            source_line=data.get("source_line"),
+            target_line=data.get("target_line"),
         )
 
     def _heuristic_analysis(
@@ -215,8 +217,13 @@ TARGET FILE CURRENT CONTENT:
         target: DependentTargetFile,
     ) -> Optional[ImpactFinding]:
         """
-        Deterministic, AST-based heuristic analysis.
-        Identifies removed fields, modified types, deleted methods, and endpoint changes.
+        Deterministic, AST-based heuristic analyzer with deep contract intelligence:
+        - Exact line numbers for both source mutations and target call sites
+        - Bean Validation additions (@NotNull, @NotBlank, @Size)
+        - Jackson Wire format changes (@JsonProperty, @JsonIgnore)
+        - Newly required @RequestParam query parameters
+        - Field removals, renames, and type mutations
+        - Method removals and signature shifts
         """
         old_content = source.old_content or ""
         new_content = source.new_content or ""
@@ -237,69 +244,198 @@ TARGET FILE CURRENT CONTENT:
         breaking_reasons = []
         suggested_patches = []
         severity = SeverityLevel.HIGH
+        primary_source_line: Optional[int] = None
+        primary_target_line: Optional[int] = None
 
         # 1. Removed fields
         for rem_f in diff_summary["removed_fields"]:
             fname = rem_f["name"]
-            # Look for getter/setter or direct usage
+            src_line = rem_f.get("line_number")
             getter = f"get{fname[0].upper()}{fname[1:]}()"
             setter = f"set{fname[0].upper()}{fname[1:]}("
-            if fname in target_content or getter in target_content or setter in target_content:
+
+            tgt_line = (
+                find_symbol_line(target_content, getter)
+                or find_symbol_line(target_content, setter)
+                or find_symbol_line(target_content, fname)
+            )
+
+            if tgt_line:
+                if not primary_source_line:
+                    primary_source_line = src_line
+                if not primary_target_line:
+                    primary_target_line = tgt_line
+
+                src_loc = f" (Line {src_line})" if src_line else ""
+                tgt_loc = f" (Line {tgt_line})" if tgt_line else ""
+
                 breaking_reasons.append(
-                    f"Field `{fname}` of type `{rem_f['type']}` was removed/renamed in `{source.path}`, but `{target.path}` still references it."
+                    f"Field `{fname}` of type `{rem_f['type']}` was removed/renamed in `{source.path}`{src_loc}, but `{target.path}`{tgt_loc} still references it."
                 )
                 severity = SeverityLevel.CRITICAL
                 suggested_patches.append(
-                    f"// In {target.path}:\n// Remove references to {fname} / {getter} or update to the new field name."
+                    f"// In {target.path}{tgt_loc}:\n// Remove references to {fname} / {getter} or update to the new field name."
                 )
 
         # 2. Type changed fields
         for tc_f in diff_summary["type_changed_fields"]:
             fname = tc_f["name"]
-            if fname in target_content:
+            src_line = tc_f.get("line_number")
+            tgt_line = find_symbol_line(target_content, fname)
+
+            if tgt_line:
+                if not primary_source_line:
+                    primary_source_line = src_line
+                if not primary_target_line:
+                    primary_target_line = tgt_line
+
+                src_loc = f" (Line {src_line})" if src_line else ""
+                tgt_loc = f" (Line {tgt_line})" if tgt_line else ""
+
                 breaking_reasons.append(
-                    f"Field `{fname}` type changed from `{tc_f['old_type']}` to `{tc_f['new_type']}` in `{source.path}`."
+                    f"Field `{fname}` type changed from `{tc_f['old_type']}` to `{tc_f['new_type']}` in `{source.path}`{src_loc}. Target references it at `{target.path}`{tgt_loc}."
                 )
                 suggested_patches.append(
-                    f"// In {target.path}:\n// Update variable or DTO field `{fname}` type to `{tc_f['new_type']}`."
+                    f"// In {target.path}{tgt_loc}:\n// Update variable or DTO field `{fname}` type from `{tc_f['old_type']}` to `{tc_f['new_type']}`."
                 )
 
-        # 3. Removed methods
+        # 3. Bean Validation constraint tightening (@NotNull, @NotBlank, @Size)
+        for val_f in diff_summary.get("validation_tightened_fields", []):
+            fname = val_f["name"]
+            src_line = val_f.get("line_number")
+            constraints_str = ", ".join(val_f["added_constraints"])
+            tgt_line = find_symbol_line(target_content, fname)
+
+            if tgt_line:
+                if not primary_source_line:
+                    primary_source_line = src_line
+                if not primary_target_line:
+                    primary_target_line = tgt_line
+
+                src_loc = f" (Line {src_line})" if src_line else ""
+                tgt_loc = f" (Line {tgt_line})" if tgt_line else ""
+
+                breaking_reasons.append(
+                    f"Validation constraint(s) [{constraints_str}] added to `{fname}` in `{source.path}`{src_loc}. Dependent `{target.path}`{tgt_loc} sending null/empty values will fail with HTTP 400 (MethodArgumentNotValidException) in production."
+                )
+                suggested_patches.append(
+                    f"// In {target.path}{tgt_loc}:\n// Ensure `{fname}` is always populated with non-null/valid value matching: {constraints_str}."
+                )
+
+        # 4. Jackson Wire Serialization mutations (@JsonProperty changed or @JsonIgnore added)
+        for jm_f in diff_summary.get("jackson_mutated_fields", []):
+            fname = jm_f["name"]
+            src_line = jm_f.get("line_number")
+            tgt_line = find_symbol_line(target_content, fname)
+
+            if tgt_line:
+                if not primary_source_line:
+                    primary_source_line = src_line
+                if not primary_target_line:
+                    primary_target_line = tgt_line
+
+                src_loc = f" (Line {src_line})" if src_line else ""
+                tgt_loc = f" (Line {tgt_line})" if tgt_line else ""
+
+                breaking_reasons.append(
+                    f"Wire JSON contract changed for `{fname}` in `{source.path}`{src_loc}: {jm_f['reason']} ('{jm_f['old_property']}' -> '{jm_f['new_property']}'). `{target.path}`{tgt_loc} will fail to deserialize or serialize this property."
+                )
+                suggested_patches.append(
+                    f"// In {target.path}{tgt_loc}:\n// Update JSON property mapping for `{fname}` to expect wire name '{jm_f['new_property']}'."
+                )
+
+        # 5. Removed methods
         for rem_m in diff_summary["removed_methods"]:
             mname = rem_m["name"]
-            if f"{mname}(" in target_content:
+            src_line = rem_m.get("line_number")
+            tgt_line = find_symbol_line(target_content, f"{mname}(")
+
+            if tgt_line:
+                if not primary_source_line:
+                    primary_source_line = src_line
+                if not primary_target_line:
+                    primary_target_line = tgt_line
+
+                src_loc = f" (Line {src_line})" if src_line else ""
+                tgt_loc = f" (Line {tgt_line})" if tgt_line else ""
+
                 breaking_reasons.append(
-                    f"Method `{mname}({', '.join(rem_m['params'])})` was deleted from `{source.path}`, but called in `{target.path}`."
+                    f"Method `{mname}({', '.join(rem_m['params'])})` was deleted from `{source.path}`{src_loc}, but called in `{target.path}`{tgt_loc}."
                 )
                 severity = SeverityLevel.CRITICAL
                 suggested_patches.append(
-                    f"// In {target.path}:\n// Replace call to `{mname}()` with the updated API method."
+                    f"// In {target.path}{tgt_loc}:\n// Replace call to `{mname}()` with the updated API method."
                 )
 
-        # 4. Method signature changes
+        # 6. Method signature changes
         for sig_m in diff_summary["method_signature_changes"]:
             mname = sig_m["name"]
-            if f"{mname}(" in target_content:
+            src_line = sig_m.get("line_number")
+            tgt_line = find_symbol_line(target_content, f"{mname}(")
+
+            if tgt_line:
+                if not primary_source_line:
+                    primary_source_line = src_line
+                if not primary_target_line:
+                    primary_target_line = tgt_line
+
+                src_loc = f" (Line {src_line})" if src_line else ""
+                tgt_loc = f" (Line {tgt_line})" if tgt_line else ""
+
                 breaking_reasons.append(
                     f"Method signature of `{mname}` changed from `({', '.join(sig_m['old_params'])}) -> {sig_m['old_return']}` "
-                    f"to `({', '.join(sig_m['new_params'])}) -> {sig_m['new_return']}`."
+                    f"to `({', '.join(sig_m['new_params'])}) -> {sig_m['new_return']}` in `{source.path}`{src_loc}. Invoked in `{target.path}`{tgt_loc}."
                 )
                 suggested_patches.append(
-                    f"// In {target.path}:\n// Update invocation of `{mname}` to pass new parameter types: ({', '.join(sig_m['new_params'])})."
+                    f"// In {target.path}{tgt_loc}:\n// Update invocation of `{mname}` to pass new parameter types: ({', '.join(sig_m['new_params'])})."
                 )
 
-        # 5. REST endpoint path modifications
-        old_eps = {ep["path"] for ep in diff_summary["old_endpoints"] if ep["path"]}
-        new_eps = {ep["path"] for ep in diff_summary["new_endpoints"] if ep["path"]}
-        for removed_path in old_eps - new_eps:
-            if removed_path in target_content:
+        # 7. Newly required REST query parameters
+        for req_p in diff_summary.get("newly_required_params", []):
+            ep_path = req_p["endpoint_path"]
+            param_name = req_p["param_name"]
+            src_line = req_p.get("line_number")
+            tgt_line = find_symbol_line(target_content, ep_path)
+
+            if tgt_line:
+                if not primary_source_line:
+                    primary_source_line = src_line
+                if not primary_target_line:
+                    primary_target_line = tgt_line
+
+                src_loc = f" (Line {src_line})" if src_line else ""
+                tgt_loc = f" (Line {tgt_line})" if tgt_line else ""
+
                 breaking_reasons.append(
-                    f"REST endpoint `{removed_path}` was changed or removed in `{source.path}`, but `{target.path}` invokes it."
+                    f"REST endpoint `{ep_path}` in `{source.path}`{src_loc} added newly required parameter `{param_name}`. Dependent client at `{target.path}`{tgt_loc} omitting it will fail with HTTP 400 (MissingServletRequestParameterException)."
                 )
                 severity = SeverityLevel.CRITICAL
                 suggested_patches.append(
-                    f"// In {target.path}:\n// Update HTTP client URL from `{removed_path}` to the new endpoint path."
+                    f"// In {target.path}{tgt_loc}:\n// Update client request to `{ep_path}` to include required parameter `{param_name}=<value>`."
                 )
+
+        # 8. REST endpoint path modifications
+        old_eps = {ep["path"]: ep.get("line_number") for ep in diff_summary["old_endpoints"] if ep.get("path")}
+        new_eps = {ep["path"]: ep.get("line_number") for ep in diff_summary["new_endpoints"] if ep.get("path")}
+        for removed_path, src_line in old_eps.items():
+            if removed_path not in new_eps:
+                tgt_line = find_symbol_line(target_content, removed_path)
+                if tgt_line:
+                    if not primary_source_line:
+                        primary_source_line = src_line
+                    if not primary_target_line:
+                        primary_target_line = tgt_line
+
+                    src_loc = f" (Line {src_line})" if src_line else ""
+                    tgt_loc = f" (Line {tgt_line})" if tgt_line else ""
+
+                    breaking_reasons.append(
+                        f"REST endpoint `{removed_path}` was changed or removed in `{source.path}`{src_loc}, but `{target.path}`{tgt_loc} invokes it."
+                    )
+                    severity = SeverityLevel.CRITICAL
+                    suggested_patches.append(
+                        f"// In {target.path}{tgt_loc}:\n// Update HTTP client URL from `{removed_path}` to the new endpoint path."
+                    )
 
         if not breaking_reasons:
             return None
@@ -316,4 +452,6 @@ TARGET FILE CURRENT CONTENT:
             detailed_reason="\n".join(f"- {r}" for r in breaking_reasons),
             suggested_fix=f"Update `{target.path}` in `{target_repo}` to accommodate contract modifications in `{source_repo}`.",
             suggested_patch_code="\n\n".join(suggested_patches),
+            source_line=primary_source_line,
+            target_line=primary_target_line,
         )
