@@ -13,8 +13,8 @@ public class UserQueryController {
             @RequestParam("userId") String userId,
             @RequestParam("department") String department) {
         UserDTO dto = new UserDTO();
-        dto.setAccountId(userId);
-        dto.setDepartmentCode(department);
+        dto.setUserId(userId);
+        dto.setDepartment(department);
         dto.setName("Sample User");
         return ResponseEntity.ok(dto);
     }
@@ -24,8 +24,8 @@ public class UserQueryController {
             @PathVariable("userId") String userId,
             @PathVariable("department") String department) {
         UserDTO dto = new UserDTO();
-        dto.setAccountId(userId);
-        dto.setDepartmentCode(department);
+        dto.setUserId(userId);
+        dto.setDepartment(department);
         return ResponseEntity.ok(dto);
     }
 }
