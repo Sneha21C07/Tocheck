@@ -42,7 +42,13 @@ def matches_git_pattern(path: str, pattern: str) -> bool:
 
 
 class Config:
-    GITHUB_PAT: str = os.getenv("GITHUB_PAT", "")
+    GITHUB_PAT: str = (
+        os.getenv("GITHUB_PAT")
+        or os.getenv("PAT1")
+        or os.getenv("PAT")
+        or os.getenv("CROSS_REPO_GITHUB_PAT")
+        or ""
+    )
     EXCEL_MAPPING_PATH: Path = Path(os.getenv("EXCEL_MAPPING_PATH", str(BASE_DIR / "repo_dependency_mapping.xlsx")))
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")

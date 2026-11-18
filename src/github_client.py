@@ -55,8 +55,20 @@ class GitHubClient:
         return []
 
     def get_pull_request_files(self, repo: str, pr_number: int) -> List[ChangedJavaFile]:
-        """Fetch all changed files in a pull request."""
+        """Fetch all changed files in a pull request with old and new contents."""
         owner, repo_name = self._split_repo(repo)
+        base_sha = None
+        head_sha = None
+        try:
+            pr_url = f"{self.base_url}/repos/{owner}/{repo_name}/pulls/{pr_number}"
+            pr_res = self.session.get(pr_url)
+            if pr_res.status_code == 200:
+                pr_json = pr_res.json()
+                base_sha = pr_json.get("base", {}).get("sha")
+                head_sha = pr_json.get("head", {}).get("sha")
+        except Exception:
+            pass
+
         url = f"{self.base_url}/repos/{owner}/{repo_name}/pulls/{pr_number}/files"
         response = self.session.get(url)
         response.raise_for_status()
@@ -74,19 +86,28 @@ class GitHubClient:
 
             # Fetch new content
             new_content = None
-            if raw_url and status != "removed":
-                try:
-                    c_res = self.session.get(raw_url)
-                    if c_res.status_code == 200:
-                        new_content = c_res.text
-                except Exception:
-                    pass
+            if status != "removed":
+                if raw_url:
+                    try:
+                        c_res = self.session.get(raw_url)
+                        if c_res.status_code == 200:
+                            new_content = c_res.text
+                    except Exception:
+                        pass
+                if not new_content and head_sha:
+                    new_content = self.get_file_content(repo, filename, ref=head_sha)
+
+            # Fetch old content from base commit
+            old_content = None
+            if status != "added" and base_sha:
+                old_content = self.get_file_content(repo, filename, ref=base_sha)
 
             changed_files.append(
                 ChangedJavaFile(
                     path=filename,
                     status=status,
                     diff=patch,
+                    old_content=old_content,
                     new_content=new_content,
                 )
             )
@@ -94,12 +115,17 @@ class GitHubClient:
         return changed_files
 
     def get_commit_files(self, repo: str, commit_sha: str) -> List[ChangedJavaFile]:
-        """Fetch changed files from a specific commit (e.g. from a push event)."""
+        """Fetch changed files from a specific commit (e.g. from a push event) with old and new contents."""
         owner, repo_name = self._split_repo(repo)
         url = f"{self.base_url}/repos/{owner}/{repo_name}/commits/{commit_sha}"
         response = self.session.get(url)
         response.raise_for_status()
         commit_data = response.json()
+
+        parent_sha = None
+        parents = commit_data.get("parents", [])
+        if parents:
+            parent_sha = parents[0].get("sha")
 
         changed_files: List[ChangedJavaFile] = []
         for f in commit_data.get("files", []):
@@ -107,11 +133,35 @@ class GitHubClient:
             if not filename.endswith(".java"):
                 continue
 
+            status = f.get("status", "modified")
+            patch = f.get("patch", "")
+            raw_url = f.get("raw_url", "")
+
+            # Fetch new content
+            new_content = None
+            if status != "removed":
+                if raw_url:
+                    try:
+                        c_res = self.session.get(raw_url)
+                        if c_res.status_code == 200:
+                            new_content = c_res.text
+                    except Exception:
+                        pass
+                if not new_content:
+                    new_content = self.get_file_content(repo, filename, ref=commit_sha)
+
+            # Fetch old content from parent commit
+            old_content = None
+            if status != "added" and parent_sha:
+                old_content = self.get_file_content(repo, filename, ref=parent_sha)
+
             changed_files.append(
                 ChangedJavaFile(
                     path=filename,
-                    status=f.get("status", "modified"),
-                    diff=f.get("patch", ""),
+                    status=status,
+                    diff=patch,
+                    old_content=old_content,
+                    new_content=new_content,
                 )
             )
 

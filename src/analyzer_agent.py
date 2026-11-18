@@ -238,6 +238,23 @@ TARGET FILE CURRENT CONTENT:
                     old_lines.append(line)
             old_content = "\n".join(old_lines)
 
+        # If new_content is not available directly, infer from diff or local workspace file
+        if not new_content and source.diff:
+            new_lines = []
+            for line in source.diff.splitlines():
+                if line.startswith("+") and not line.startswith("+++"):
+                    new_lines.append(line[1:])
+                elif not line.startswith("-"):
+                    new_lines.append(line)
+            new_content = "\n".join(new_lines)
+
+        if not new_content and os.path.exists(source.path):
+            try:
+                with open(source.path, "r", encoding="utf-8", errors="replace") as f:
+                    new_content = f.read()
+            except Exception:
+                pass
+
         diff_summary = compare_java_versions(old_content, new_content)
         target_content = target.content
 

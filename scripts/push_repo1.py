@@ -11,9 +11,9 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-pat = os.getenv("GITHUB_PAT")
+pat = os.getenv("GITHUB_PAT") or os.getenv("PAT1") or os.getenv("PAT") or os.getenv("CROSS_REPO_GITHUB_PAT")
 if not pat:
-    print("Error: GITHUB_PAT not found in .env")
+    print("Error: GITHUB_PAT/PAT1 not found in .env")
     exit(1)
 
 repo_dir = BASE_DIR / "repo1-user-query-service"

@@ -58,7 +58,7 @@ jobs:
 
       - name: "Run Cross-Repo Dependency Guardian Agent"
         env:
-          GITHUB_PAT: ${{ secrets.CROSS_REPO_GITHUB_PAT || secrets.GITHUB_TOKEN }}
+          GITHUB_PAT: ${{ secrets.PAT1 || secrets.CROSS_REPO_GITHUB_PAT || secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

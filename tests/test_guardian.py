@@ -244,6 +244,33 @@ public class OrderConsumer {
         self.assertIn("order_ref_id", finding.breaking_change_summary)
         self.assertIsNotNone(finding.source_line)
 
+    def test_spring_controller_parsing_with_method_regex(self):
+        """Test that Spring controller annotations and method signatures parse without NameError."""
+        controller_code = """package com.example.query.controller;
+
+import com.example.query.dto.UserDTO;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserQueryController {
+
+    @GetMapping
+    public ResponseEntity<UserDTO> getUser(
+            @RequestParam("userId") String userId,
+            @RequestParam("department") String department) {
+        UserDTO dto = new UserDTO();
+        return ResponseEntity.ok(dto);
+    }
+}
+"""
+        model = parse_java_source(controller_code)
+        self.assertEqual(model.class_name, "UserQueryController")
+        self.assertGreaterEqual(len(model.rest_endpoints), 1)
+        endpoint = model.rest_endpoints[0]
+        self.assertEqual(endpoint["verb"], "RequestMapping")
+
 
 if __name__ == "__main__":
     unittest.main()

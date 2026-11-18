@@ -22,6 +22,10 @@ FIELD_LINE_REGEX = re.compile(
 METHOD_LINE_REGEX = re.compile(
     r"^(?:(?:public|protected|private)\s+)?(?:static\s+)?(?:final\s+)?(?:synchronized\s+)?([A-Za-z0-9_<>,?\[\]]+)\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)"
 )
+METHOD_REGEX = re.compile(
+    r"(?:(?:public|protected|private)\s+)?(?:static\s+)?(?:final\s+)?(?:synchronized\s+)?([A-Za-z0-9_<>,?\[\]]+)\s+([A-Za-z0-9_]+)\s*\((.*?)\)\s*(?:throws\s+[^{;]+)?(?=\{|\;)",
+    re.DOTALL,
+)
 REST_MAPPING_REGEX = re.compile(
     r"@(GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping)\s*(?:\(\s*(?:value\s*=\s*)?\"([^\"]*)\")?",
     re.MULTILINE,
