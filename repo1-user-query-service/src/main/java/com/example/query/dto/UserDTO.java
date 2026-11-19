@@ -7,9 +7,8 @@ public class UserDTO implements Serializable {
     private String userId;
     private String name;
     private String email;
-    private String department;
-    // SINGLE MISMATCH: role field renamed to userRole!
-    // repo2 (Sneha21C07/tocheck2) invokes getRole() and will detect this breaking change!
+    // BREAKING CHANGE FOR THIS COMMIT: department renamed to deptCode
+    private String deptCode;
     private String userRole;
     private String region;
     private String status;
@@ -26,8 +25,8 @@ public class UserDTO implements Serializable {
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
-    public String getDepartment() { return department; }
-    public void setDepartment(String department) { this.department = department; }
+    public String getDeptCode() { return deptCode; }
+    public void setDeptCode(String deptCode) { this.deptCode = deptCode; }
 
     public String getUserRole() { return userRole; }
     public void setUserRole(String userRole) { this.userRole = userRole; }
