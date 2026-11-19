@@ -149,12 +149,17 @@ class CrossRepoGuardian:
                         target_file=tgt_file,
                     )
                     if finding and finding.is_impacted:
+                        finding.auto_block_pr = rule.auto_block_pr
                         logger.warning(
                             f"IMPACT DETECTED: {src_file.path} breaks {tgt_file.path} in {target_repo}!"
                         )
                         all_findings.append(finding)
 
         has_breaking = any(f.severity in ("CRITICAL", "HIGH") for f in all_findings)
+        should_block = any(
+            f.severity in ("CRITICAL", "HIGH") and getattr(f, "auto_block_pr", False)
+            for f in all_findings
+        )
 
         report = AnalysisReport(
             source_repo=source_repo,
@@ -163,6 +168,7 @@ class CrossRepoGuardian:
             has_breaking_changes=has_breaking,
             findings=all_findings,
             repo_architectures=repo_architectures,
+            should_block=should_block,
         )
         report.markdown_summary = generate_pr_comment_markdown(report)
 

@@ -155,7 +155,7 @@ def main():
 
     if args.simulate_demo:
         report = run_demo_simulation(guardian)
-        if args.fail_on_breaking and report.has_breaking_changes:
+        if (args.fail_on_breaking or report.should_block) and report.has_breaking_changes:
             sys.exit(1)
         sys.exit(0)
 
@@ -181,8 +181,8 @@ def main():
 
     print(report.markdown_summary)
 
-    if args.fail_on_breaking and report.has_breaking_changes:
-        print("Failing CI build because cross-repository breaking changes were detected.")
+    if (args.fail_on_breaking or report.should_block) and report.has_breaking_changes:
+        print("\n❌ FAILING CI BUILD: Cross-repository breaking changes detected (Auto_Block enabled).")
         sys.exit(1)
 
     sys.exit(0)

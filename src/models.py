@@ -114,6 +114,7 @@ class ImpactFinding:
     suggested_patch_code: str
     source_line: Optional[int] = None
     target_line: Optional[int] = None
+    auto_block_pr: bool = False
 
 
 @dataclass
@@ -138,3 +139,4 @@ class AnalysisReport:
     findings: List[ImpactFinding] = field(default_factory=list)
     repo_architectures: Dict[str, RepoArchitectureSummary] = field(default_factory=dict)
     markdown_summary: str = ""
+    should_block: bool = False

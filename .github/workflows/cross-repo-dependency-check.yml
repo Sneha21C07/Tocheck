@@ -26,7 +26,7 @@ on:
       fail_on_breaking:
         description: "Fail the workflow if breaking changes are detected"
         required: false
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -75,7 +75,11 @@ jobs:
             ARGS="$ARGS --commit ${{ github.sha }}"
           fi
 
-          if [ "${{ github.event.inputs.fail_on_breaking }}" = "true" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ github.event.inputs.fail_on_breaking }}" != "false" ]; then
+              ARGS="$ARGS --fail-on-breaking"
+            fi
+          else
             ARGS="$ARGS --fail-on-breaking"
           fi
 
