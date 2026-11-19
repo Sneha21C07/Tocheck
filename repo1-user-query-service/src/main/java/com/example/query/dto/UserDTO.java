@@ -2,7 +2,7 @@ package com.example.query.dto;
 
 import java.io.Serializable;
 import java.util.List;
-
+//after change
 public class UserDTO implements Serializable {
     private String userId;
     private String name;
